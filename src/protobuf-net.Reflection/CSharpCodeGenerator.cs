@@ -140,7 +140,7 @@ namespace ProtoBuf.Reflection
                .WriteLine($"//   Input: {Path.GetFileName(ctx.File.Name)}")
                .WriteLine("// </auto-generated>")
                .WriteLine()
-               .WriteLine("#region Designer generated code")
+               //.WriteLine("#region Designer generated code")
                .Write($"#pragma warning disable {prefix}0612, {prefix}0618, {prefix}1591, {prefix}3021");
             if (ctx.Supports(CSharp6))
             {
@@ -174,7 +174,7 @@ namespace ProtoBuf.Reflection
                 tw.Write(AdditionalSuppressionCodes);
             }
             tw.WriteLine();
-            tw.WriteLine("#endregion");
+            //tw.WriteLine("#endregion");
         }
         /// <summary>
         /// Start an enum
@@ -182,10 +182,10 @@ namespace ProtoBuf.Reflection
         protected override void WriteEnumHeader(GeneratorContext ctx, EnumDescriptorProto @enum, ref object state)
         {
             var name = ctx.NameNormalizer.GetName(@enum);
-            var tw = ctx.Write("[global::ProtoBuf.ProtoContract(");
+            /*var tw = ctx.Write("[global::ProtoBuf.ProtoContract(");
             if (name != @enum.Name) tw.Write($@"Name = @""{@enum.Name}""");
             tw.WriteLine(")]");
-            WriteOptions(ctx, @enum.Options);
+            WriteOptions(ctx, @enum.Options);*/
             ctx.WriteLine($"{GetAccess(GetAccess(@enum))} enum {Escape(name)}").WriteLine("{").Indent();
         }
         /// <summary>
@@ -237,6 +237,35 @@ namespace ProtoBuf.Reflection
             //    ctx.WriteLine("OnDispose(); // invoke user-defined additional dispose features, if any");
             //    ctx.Outdent().WriteLine("}").WriteLine("partial void OnDispose(); // implement in a partial class to add additional dispose features").WriteLine();
             //}
+
+            if (IsMessageName(message.Name))
+            {
+                ctx.WriteLine("[global::MessagePack.IgnoreMember]")
+                   .WriteLine($"public override int Id => Opcode.{message.Name};")
+                   .WriteLine()
+                   .WriteLine($"public static {message.Name} FactoryMethod()")
+                   .WriteLine("{")
+                   .WriteLine($"    return GameFramework.ReferencePool.Acquire<{message.Name}>();")
+                   .WriteLine("}");
+
+                // 如果存在数组增加一个清理数组的方法因为客户端池复用需要!!! 如果不需要随时删除此段代码
+                var repeated = message.Fields.Find(field => field.label == FieldDescriptorProto.Label.LabelRepeated) != null;
+                if (repeated)
+                {
+                    ctx.WriteLine().WriteLine("public override void Clear()")
+                       .WriteLine("{")
+                       .WriteLine("     base.Clear();");
+                    foreach (var field in message.Fields)
+                    {
+                        if (field.label == FieldDescriptorProto.Label.LabelRepeated)
+                        {
+                            ctx.WriteLine($"     {field.Name}.Clear();");
+                        }
+                    }
+                    ctx.WriteLine("}");
+                }
+            }
+  
             ctx.Outdent().WriteLine("}").WriteLine();
         }
         /// <summary>
@@ -245,12 +274,26 @@ namespace ProtoBuf.Reflection
         protected override void WriteMessageHeader(GeneratorContext ctx, DescriptorProto message, ref object state)
         {
             var name = ctx.NameNormalizer.GetName(message);
-            var tw = ctx.Write("[global::ProtoBuf.ProtoContract(");
-            if (name != message.Name) tw.Write($@"Name = @""{message.Name}""");
-            tw.WriteLine(")]");
+            var tw = ctx.Write("[global::MessagePack.MessagePackObject");
+            if (name != message.Name) tw.Write($@"(Name = @""{message.Name}"")");
+            /*if (IsMessageName(message.Name))
+            {
+                tw.WriteLine($"), Message(Opcode.{message.Name})]");
+            }
+            else*/
+            {
+                tw.WriteLine("]");
+            }
+
             WriteOptions(ctx, message.Options);
             tw = ctx.Write($"{GetAccess(GetAccess(message))} partial class {Escape(name)}");
-            tw.Write(" : global::ProtoBuf.IExtensible");
+
+            if (IsMessageName(message.Name))
+            {
+                tw.Write(" : PacketBase");  //(" : PacketBase, IMessage");
+            }
+
+
             //if (UsePooledMemory(ctx, message))
             //{
             //    tw.Write(", global::System.IDisposable");
@@ -262,7 +305,7 @@ namespace ProtoBuf.Reflection
                 ctx.WriteLine("#error message_set_wire_format is not currently implemented").WriteLine();
             }
 
-            ctx.WriteLine($"private global::ProtoBuf.IExtension {FieldPrefix}extensionData;")
+            /*ctx.WriteLine($"private global::ProtoBuf.IExtension {FieldPrefix}extensionData;")
                 .WriteLine($"global::ProtoBuf.IExtension global::ProtoBuf.IExtensible.GetExtensionObject(bool createIfMissing)");
 
             if (ctx.Supports(CSharp6))
@@ -272,7 +315,7 @@ namespace ProtoBuf.Reflection
             else
             {
                 ctx.WriteLine("{").Indent().WriteLine($"return global::ProtoBuf.Extensible.GetExtensionObject(ref {FieldPrefix}extensionData, createIfMissing);").Outdent().WriteLine("}");
-            }
+            }*/
         }
 
         private static void WriteOptions<T>(GeneratorContext ctx, T obj) where T : class, ISchemaOptions
@@ -457,7 +500,7 @@ namespace ProtoBuf.Reflection
         protected override void WriteField(GeneratorContext ctx, FieldDescriptorProto field, ref object state, OneOfStub[] oneOfs)
         {
             var name = ctx.NameNormalizer.GetName(field);
-            var tw = ctx.Write($"[global::ProtoBuf.ProtoMember({field.Number}");
+            var tw = ctx.Write($"[global::MessagePack.Key({field.Number - 1}");
             if (name != field.Name)
             {
                 tw.Write($@", Name = @""{field.Name}""");
@@ -487,7 +530,7 @@ namespace ProtoBuf.Reflection
 
             void WriteDataFormatAttribute()
             {
-                if (!string.IsNullOrWhiteSpace(dataFormat))
+                /*if (!string.IsNullOrWhiteSpace(dataFormat))
                 {
                     tw.Write($", DataFormat = global::ProtoBuf.DataFormat.{dataFormat}");
                 }
@@ -498,7 +541,7 @@ namespace ProtoBuf.Reflection
                 if (field.label == FieldDescriptorProto.Label.LabelRequired)
                 {
                     tw.Write($", IsRequired = true");
-                }
+                }*/
                 tw.WriteLine(")]");
             }
 
@@ -571,7 +614,7 @@ namespace ProtoBuf.Reflection
                 }
                 else if (ctx.Supports(CSharp6))
                 {
-                    ctx.WriteLine($"{GetAccess(GetAccess(field))} global::System.Collections.Generic.List<{typeName}> {Escape(name)} {{ get; {(allowSet ? "set; " : "")}}} = new global::System.Collections.Generic.List<{typeName}>();");
+                    ctx.WriteLine($"{GetAccess(GetAccess(field))} global::System.Collections.Generic.List<{typeName}> {Escape(name)} {{ get; {(allowSet ? "set; " : "")}}} = new();");
                 }
                 else
                 {
@@ -1288,6 +1331,17 @@ namespace ProtoBuf.Reflection
                 }
             }
             tw.WriteLine(");");
+        }
+
+        private bool IsMessageName(string messageName)
+        {
+            if (messageName.Contains("C2S_") || messageName.Contains("C2L_") || messageName.Contains("C2G_") || messageName.Contains("C2B_") || messageName.Contains("C2W_") ||
+                messageName.Contains("S2C_") || messageName.Contains("L2C_") || messageName.Contains("G2C_") || messageName.Contains("B2C_") || messageName.Contains("W2C_"))
+            {
+                return true;
+            }
+
+            return false;
         }
     }
 }
