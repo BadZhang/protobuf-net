@@ -153,7 +153,8 @@ namespace ProtoBuf.Reflection
             {
                 if (!file.IncludeInOutput) continue;
 
-                var fileName = Path.ChangeExtension(file.Name, DefaultFileExtension);
+                var fileName = char.ToUpper(file.Name[0]) + file.Name.Substring(1);
+                fileName = Path.ChangeExtension(fileName, DefaultFileExtension);
 
                 string generated;
                 using (var buffer = new StringWriter())
