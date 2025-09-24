@@ -238,7 +238,7 @@ namespace ProtoBuf.Reflection
             //    ctx.Outdent().WriteLine("}").WriteLine("partial void OnDispose(); // implement in a partial class to add additional dispose features").WriteLine();
             //}
 
-            if (IsMessageName(message.Name))
+            if (IsMessageName(message.Name)) // TODO 如果是服务端过来的消息这一段代码可以省略,因为序列化会重新New里面的字段,目前仍然是生成的
             {
                 ctx.WriteLine("[global::MessagePack.IgnoreMember]")
                    .WriteLine($"public override int Id => Opcode.{message.Name};")
@@ -259,7 +259,10 @@ namespace ProtoBuf.Reflection
                     {
                         if (field.label == FieldDescriptorProto.Label.LabelRepeated)
                         {
-                            ctx.WriteLine($"     {field.Name}.Clear();");
+                            if (IsServerMessageName(message.Name))
+                                ctx.WriteLine($"     {field.Name}?.Clear();");
+                            else
+                                ctx.WriteLine($"     {field.Name}.Clear();");
                         }
                     }
                     ctx.WriteLine("}");
@@ -497,7 +500,7 @@ namespace ProtoBuf.Reflection
         /// <summary>
         /// Write a field
         /// </summary>
-        protected override void WriteField(GeneratorContext ctx, FieldDescriptorProto field, ref object state, OneOfStub[] oneOfs)
+        protected override void WriteField(GeneratorContext ctx, DescriptorProto message, FieldDescriptorProto field, ref object state, OneOfStub[] oneOfs)
         {
             var name = ctx.NameNormalizer.GetName(field);
             var tw = ctx.Write($"[global::MessagePack.Key({field.Number - 1}");
@@ -614,7 +617,8 @@ namespace ProtoBuf.Reflection
                 }
                 else if (ctx.Supports(CSharp6))
                 {
-                    ctx.WriteLine($"{GetAccess(GetAccess(field))} global::System.Collections.Generic.List<{typeName}> {Escape(name)} {{ get; {(allowSet ? "set; " : "")}}} = new();");
+                    var needNew = IsServerMessageName(message.Name) ? "" : " = new();";
+                    ctx.WriteLine($"{GetAccess(GetAccess(field))} global::System.Collections.Generic.List<{typeName}> {Escape(name)} {{ get; {(allowSet ? "set; " : "")}}}{needNew}");
                 }
                 else
                 {
@@ -1333,10 +1337,23 @@ namespace ProtoBuf.Reflection
             tw.WriteLine(");");
         }
 
+        /// <summary>
+        /// Emit code representing a service method
+        /// </summary>
         private bool IsMessageName(string messageName)
         {
             if (messageName.Contains("C2S_") || messageName.Contains("C2L_") || messageName.Contains("C2G_") || messageName.Contains("C2B_") || messageName.Contains("C2W_") ||
                 messageName.Contains("S2C_") || messageName.Contains("L2C_") || messageName.Contains("G2C_") || messageName.Contains("B2C_") || messageName.Contains("W2C_"))
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        private bool IsServerMessageName(string messageName)
+        {
+            if (messageName.Contains("S2C_") || messageName.Contains("L2C_") || messageName.Contains("G2C_") || messageName.Contains("B2C_") || messageName.Contains("W2C_"))
             {
                 return true;
             }

@@ -326,7 +326,7 @@ namespace ProtoBuf.Reflection
             }
             foreach (var inner in message.Fields)
             {
-                WriteField(ctx, inner, ref state, oneOfs);
+                WriteField(ctx, message, inner, ref state, oneOfs);
             }
 
             if (oneOfs != null)
@@ -377,7 +377,7 @@ namespace ProtoBuf.Reflection
         /// <summary>
         /// Emit code representing a message field
         /// </summary>
-        protected abstract void WriteField(GeneratorContext ctx, FieldDescriptorProto field, ref object state, OneOfStub[] oneOfs);
+        protected abstract void WriteField(GeneratorContext ctx, DescriptorProto message, FieldDescriptorProto field, ref object state, OneOfStub[] oneOfs);
 
         /// <summary>
         /// Indicates whether field presence tracking is suggested for this field

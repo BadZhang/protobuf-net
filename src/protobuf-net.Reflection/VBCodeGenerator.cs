@@ -464,7 +464,7 @@ namespace ProtoBuf.Reflection
         /// <summary>
         /// Write a field
         /// </summary>
-        protected override void WriteField(GeneratorContext ctx, FieldDescriptorProto field, ref object state, OneOfStub[] oneOfs)
+        protected override void WriteField(GeneratorContext ctx, DescriptorProto message, FieldDescriptorProto field, ref object state, OneOfStub[] oneOfs)
         {
             var name = ctx.NameNormalizer.GetName(field);
 
